@@ -1,38 +1,13 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { APP_TODAY, feeStatus } from "@/lib/rules";
 import { toStudent } from "@/lib/data/students";
-import type { Batch, Chapter, FeeRecord, Notice, Student, StudentRecord, SubjectScore, Test } from "@/lib/types";
 import { Navbar } from "./Navbar";
+import { TeacherContext, type TeacherData, type TeacherSnapshot } from "./teacher-context";
 
-export type TeacherSnapshot = {
-  records: StudentRecord[];
-  subjects: Record<string, SubjectScore[]>;
-  chapters: Record<string, Chapter[]>;
-  fees: FeeRecord[];
-  tests: Test[];
-  notices: Notice[];
-  batches: { id: string; name: string }[];
-};
-
-type TeacherData = TeacherSnapshot & {
-  students: Student[];
-  batchList: Batch[];
-  addStudent: (input: { name: string; batchId: string; parentPhone: string; parentEmail?: string }) => void;
-  saveAttendance: (marks: Record<string, StudentRecord["today"]>) => void;
-  markPaid: (studentId: string) => void;
-  addTest: (test: Test) => void;
-  addNotice: (notice: Notice) => void;
-};
-
-const TeacherContext = createContext<TeacherData | null>(null);
-
-export function useTeacherData(): TeacherData {
-  const value = useContext(TeacherContext);
-  if (!value) throw new Error("Teacher data is only available on teacher pages.");
-  return value;
-}
+export type { TeacherSnapshot };
+export { useTeacherData } from "./teacher-context";
 
 export function TeacherFrame({ initial, children }: { initial: TeacherSnapshot; children: ReactNode }) {
   const [records, setRecords] = useState(initial.records);

@@ -5,7 +5,8 @@ from services.Models.user import User
 
 @dataclass
 class Student(User):
-    batch: str
+    batch: str = ""
+    roll_number: str = ""
 
 # Example usage:
 # student = Student(
@@ -17,4 +18,5 @@ class Student(User):
 #     contact_number="+91-9876543210",
 #     role="student",
 #     batch="Maths-2026",
+#     roll_number="24-018",
 # )
