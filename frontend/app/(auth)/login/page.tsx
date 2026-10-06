@@ -6,30 +6,44 @@ import { useRouter } from "next/navigation";
 import { Tabs } from "@/components/layout/Tabs";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { loginHeadTeacher, loginStudent } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState("institute");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [institutionCode, setInstitutionCode] = useState("");
   const [roll, setRoll] = useState("");
   const [studentPassword, setStudentPassword] = useState("");
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
 
-  function signIn() {
+  async function signIn() {
+    setError("");
     if (mode === "institute") {
       if (!email.trim() || !password.trim()) {
         setError("Enter email and password.");
         return;
       }
-      router.push("/dashboard");
+    } else if (!institutionCode.trim() || !roll.trim() || !studentPassword.trim()) {
+      setError("Enter institute code, roll number, and password.");
       return;
     }
-    if (!roll.trim() || !studentPassword.trim()) {
-      setError("Enter your roll number and password.");
-      return;
+    setPending(true);
+    try {
+      if (mode === "institute") {
+        await loginHeadTeacher(email.trim(), password);
+        router.push("/dashboard");
+      } else {
+        await loginStudent(institutionCode.trim(), roll.trim(), studentPassword);
+        router.push("/me");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign in failed.");
+    } finally {
+      setPending(false);
     }
-    router.push("/me");
   }
 
   return (
@@ -66,8 +80,11 @@ export default function LoginPage() {
             </div>
           ) : (
             <div>
-              <Field label="Roll number or phone">
-                <input value={roll} placeholder="e.g. 24-018 or 98xxxxxxx0" onChange={(event) => setRoll(event.target.value)} />
+              <Field label="Institute code">
+                <input value={institutionCode} placeholder="e.g. DEMO01" onChange={(event) => setInstitutionCode(event.target.value)} />
+              </Field>
+              <Field label="Roll number">
+                <input value={roll} placeholder="e.g. 24-018" onChange={(event) => setRoll(event.target.value)} />
               </Field>
               <Field label="Password">
                 <input
@@ -86,8 +103,8 @@ export default function LoginPage() {
             </label>
             <span className="text-[12.5px] text-accent">Forgot password</span>
           </div>
-          <Button variant="primary" className="w-full" onClick={signIn}>
-            Sign in
+          <Button variant="primary" className="w-full" disabled={pending} onClick={signIn}>
+            {pending ? "Signing in…" : "Sign in"}
           </Button>
           <p className="mt-4 text-center text-xs text-text-faint">
             New institute?{" "}
