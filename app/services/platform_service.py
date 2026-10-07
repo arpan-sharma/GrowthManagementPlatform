@@ -86,7 +86,19 @@ class PlatformService:
         student = self.db.get_student(institution_id, student_id)
         if student is None:
             raise AppError(404, "not_found", "Student not found.")
+        user = self.auth.get_user_by_id(student.user_id)
+        if user is None or not user.is_active:
+            raise AppError(404, "not_found", "Student not found.")
         return student
+
+    def _roll_taken(self, institution_id: str, roll_number: str) -> bool:
+        profile = self.db.find_student_by_roll(institution_id, roll_number)
+        if profile is not None:
+            user = self.auth.get_user_by_id(profile.user_id)
+            if user is not None and user.is_active:
+                return True
+        user = self.auth.get_student_by_roll(institution_id, roll_number)
+        return user is not None and user.is_active
 
     def _visible_student(self, principal: Caller, student_id: str) -> StudentProfile:
         institution_id = self._active_institution(principal)
@@ -145,7 +157,7 @@ class PlatformService:
         institution_id = self._require_teacher(principal)
         self._batch_or_404(institution_id, body.batch_id)
         roll = body.roll_number.strip()
-        if self.db.find_student_by_roll(institution_id, roll) or self.auth.get_student_by_roll(institution_id, roll):
+        if self._roll_taken(institution_id, roll):
             raise AppError(409, "roll_taken", "A student with this roll number already exists.")
         student_id = new_id("stu")
         full_name = f"{body.first_name.strip()} {body.last_name.strip()}".strip()
@@ -173,6 +185,9 @@ class PlatformService:
         )
         self.auth.save_user(user)
         self.db.save_student(profile)
+        session = getattr(self.auth, "session", None)
+        if session is not None:
+            session.flush()
         return self._student_out(profile)
 
     def update_student(self, principal: Caller, student_id: str, body: StudentUpdate) -> StudentOut:
@@ -196,9 +211,20 @@ class PlatformService:
             user.full_name = student.full_name
             user.phone = student.parent_phone
             user.email = student.parent_email
+            if "is_active" in changes and changes["is_active"] is not None:
+                user.is_active = changes["is_active"]
             self.auth.save_user(user)
         self.db.save_student(student)
         return self._student_out(student)
+
+    def delete_student(self, principal: Caller, student_id: str) -> None:
+        institution_id = self._require_teacher(principal)
+        student = self._student_or_404(institution_id, student_id)
+        user = self.auth.get_user_by_id(student.user_id)
+        if user is None:
+            raise AppError(404, "not_found", "Student not found.")
+        user.is_active = False
+        self.auth.save_user(user)
 
     def list_students(self, principal: Caller, batch_id: Optional[str] = None) -> list[StudentOut]:
         institution_id = self._active_institution(principal)
@@ -208,7 +234,13 @@ class PlatformService:
             raise AppError(403, "forbidden", "You do not have access to this resource.")
         if batch_id:
             self._batch_or_404(institution_id, batch_id)
-        return [self._student_out(row) for row in self.db.list_students(institution_id, batch_id)]
+        rows: list[StudentOut] = []
+        for row in self.db.list_students(institution_id, batch_id):
+            user = self.auth.get_user_by_id(row.user_id)
+            if user is None or not user.is_active:
+                continue
+            rows.append(self._student_out(row))
+        return rows
 
     def get_student(self, principal: Caller, student_id: str) -> StudentProfileOut:
         student = self._visible_student(principal, student_id)
@@ -632,6 +664,7 @@ class PlatformService:
                 reasons.append(f"{label} score dropped 3 tests in a row")
         fee = self.db.find_fee(student.institution_id, student.id)
         batch = self.db.get_batch(student.institution_id, student.batch_id)
+        user = self.auth.get_user_by_id(student.user_id)
         parts = student.full_name.strip().split(None, 1)
         return StudentOut(
             id=student.id,
@@ -642,7 +675,7 @@ class PlatformService:
             batch_id=student.batch_id,
             batch_name=batch.name if batch else "",
             roll_number=student.roll_number,
-            is_active=True,
+            is_active=user.is_active if user else True,
             attendance_pct=attendance_pct,
             overall_average=overall,
             previous_overall_average=previous,

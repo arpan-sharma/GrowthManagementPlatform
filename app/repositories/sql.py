@@ -104,7 +104,13 @@ class SqlAcademicRepository:
         return [batch_to_domain(row) for row in self.session.scalars(select(BatchRow)).all()]
 
     def save_student(self, row: StudentProfile) -> None:
-        self.session.merge(student_to_row(row))
+        student_row = student_to_row(row)
+        existing = self.session.get(StudentRow, row.id)
+        if existing is None:
+            self.session.add(student_row)
+        else:
+            existing.batch_id = student_row.batch_id
+        self.session.flush()
 
     def get_student(self, institution_id: str, student_id: str) -> Optional[StudentProfile]:
         result = self.session.execute(
@@ -325,7 +331,20 @@ class SqlAuthRepository(AuthRepository):
     def save_user(self, user: User) -> None:
         if user.email:
             user.email = user.email.lower()
-        self.session.merge(user_to_row(user))
+        row = user_to_row(user)
+        existing = self.session.get(UserRow, user.id)
+        if existing is None:
+            self.session.add(row)
+        else:
+            existing.first_name = row.first_name
+            existing.last_name = row.last_name
+            existing.email = row.email
+            existing.password = row.password
+            existing.contact_number = row.contact_number
+            existing.role = row.role
+            existing.is_active = row.is_active
+        # User and student rows share the same id; flush the user before any student write.
+        self.session.flush()
         if user.role == "head_teacher":
             if self.session.get(TeacherRow, user.id) is None:
                 self.session.add(TeacherRow(id=user.id))

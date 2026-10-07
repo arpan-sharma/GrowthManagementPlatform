@@ -1,5 +1,8 @@
+from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Generator, Optional
+from typing import Annotated, Generator, Optional
+
+from sqlalchemy.orm import Session
 
 import jwt
 from fastapi import Depends
@@ -19,6 +22,7 @@ from app.services.platform_service import PlatformService
 bearer = HTTPBearer(auto_error=False)
 
 _memory_repo: InMemoryAuthRepository | None = None
+_request_db_session: ContextVar[Session | None] = ContextVar("_request_db_session", default=None)
 
 
 def reset_repositories() -> None:
@@ -40,12 +44,17 @@ def _memory_repository(settings: Settings) -> InMemoryAuthRepository:
     return _memory_repo
 
 
-def get_db_session() -> Generator:
+def get_db_session() -> Generator[Session | None, None, None]:
     settings = get_settings()
     if not settings.database_url:
         yield None
         return
+    existing = _request_db_session.get()
+    if existing is not None:
+        yield existing
+        return
     session = get_session_factory(settings.database_url)()
+    token = _request_db_session.set(session)
     try:
         yield session
         session.commit()
@@ -53,10 +62,13 @@ def get_db_session() -> Generator:
         session.rollback()
         raise
     finally:
+        _request_db_session.reset(token)
         session.close()
 
 
-def get_repo(session=Depends(get_db_session)) -> AuthRepository:
+def get_repo(
+    session: Annotated[Session | None, Depends(get_db_session)],
+) -> AuthRepository:
     settings = get_settings()
     if settings.database_url:
         if session is None:
@@ -69,12 +81,15 @@ def get_repo(session=Depends(get_db_session)) -> AuthRepository:
 
 
 def get_auth_service(
-    repo: AuthRepository = Depends(get_repo), settings: Settings = Depends(get_settings)
+    repo: Annotated[AuthRepository, Depends(get_repo)],
+    settings: Settings = Depends(get_settings),
 ) -> AuthService:
     return AuthService(repo, settings)
 
 
-def get_platform_service(repo: AuthRepository = Depends(get_repo)) -> PlatformService:
+def get_platform_service(
+    repo: Annotated[AuthRepository, Depends(get_repo)],
+) -> PlatformService:
     academic = getattr(repo, "academic", None)
     if academic is None:
         raise RuntimeError("Auth repository has no academic store.")

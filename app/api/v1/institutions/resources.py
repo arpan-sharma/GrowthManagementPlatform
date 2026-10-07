@@ -2,7 +2,7 @@
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.api.deps import Principal, get_platform_service, get_principal, require_head_teacher
 from app.schemas.platform import (
@@ -118,6 +118,16 @@ def update_student(
     svc: PlatformService = Depends(get_platform_service),
 ):
     return svc.update_student(principal, student_id, body)
+
+
+@router.delete("/students/{student_id}", status_code=204)
+def delete_student(
+    student_id: str,
+    principal: Principal = Depends(require_head_teacher),
+    svc: PlatformService = Depends(get_platform_service),
+):
+    svc.delete_student(principal, student_id)
+    return Response(status_code=204)
 
 
 @router.post("/subjects", response_model=SubjectOut, status_code=201)

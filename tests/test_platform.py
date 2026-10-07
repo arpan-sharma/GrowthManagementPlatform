@@ -165,3 +165,25 @@ def test_teacher_can_run_the_class_and_students_only_see_themselves(client, admi
     assert fees.status_code == 200 and [row["student_id"] for row in fees.json()] == ["stu_aarav"]
     notices = client.get(f"{ROOT}/notices", headers=student)
     assert any(row["content"] == "Holiday on Friday" for row in notices.json())
+
+
+def test_teacher_can_delete_student(client, admin_login):
+    teacher = bearer(admin_login)
+    created = client.post(
+        f"{ROOT}/students",
+        headers=teacher,
+        json={
+            "first_name": "To",
+            "last_name": "Remove",
+            "email": "remove.me@example.com",
+            "contact_number": "+919800000099",
+            "roll_number": "24-099",
+            "batch_id": "bat_demo",
+            "password": "student123",
+        },
+    )
+    assert created.status_code == 201
+    student_id = created.json()["id"]
+    assert client.delete(f"{ROOT}/students/{student_id}", headers=teacher).status_code == 204
+    assert client.get(f"{ROOT}/students/{student_id}", headers=teacher).status_code == 404
+    assert student_id not in {row["id"] for row in client.get(f"{ROOT}/students", headers=teacher).json()}

@@ -90,6 +90,7 @@ def user_to_domain(row: UserRow, *, student_id: str | None = None, roll_number: 
         locked_until=None,
         must_change_password=False,
         consent_at=None,
+        is_active=row.is_active,
     )
 
 
@@ -103,7 +104,7 @@ def user_to_row(user: User) -> UserRow:
         password=user.password_hash,
         contact_number=user.phone or "",
         role=_db_role(user.role),
-        is_active=True,
+        is_active=user.is_active,
     )
 
 

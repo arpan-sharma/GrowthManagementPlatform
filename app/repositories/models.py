@@ -29,6 +29,7 @@ class User:
     locked_until: Optional[datetime] = None
     must_change_password: bool = False
     consent_at: Optional[datetime] = None
+    is_active: bool = True
 
 
 @dataclass

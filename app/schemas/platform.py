@@ -57,6 +57,7 @@ class StudentUpdate(BaseModel):
     email: Optional[EmailStr] = None
     contact_number: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{10,15}$")
     batch_id: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class StudentOut(BaseModel):
