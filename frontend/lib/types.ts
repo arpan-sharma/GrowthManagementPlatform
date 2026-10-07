@@ -10,7 +10,7 @@ export interface Student {
   batchId: string;
   parentPhone: string;
   parentEmail?: string;
-  attendancePct: number;
+  attendancePct: number | null;
   overallAverage: number | null;
   feeStatus: "Paid" | "Partial" | "Overdue" | null;
   flagged: boolean;

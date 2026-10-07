@@ -13,10 +13,13 @@ import { APP_TODAY } from "@/lib/rules";
 
 export default function DashboardPage() {
   const { students, batchList, notices } = useTeacherData();
+  const attendanceValues = students.flatMap((student) =>
+    student.attendancePct === null ? [] : [student.attendancePct],
+  );
   const attendance =
-    students.length === 0
+    attendanceValues.length === 0
       ? 0
-      : Math.round(students.reduce((sum, student) => sum + student.attendancePct, 0) / students.length);
+      : Math.round(attendanceValues.reduce((sum, value) => sum + value, 0) / attendanceValues.length);
   const flagged = students.filter((student) => student.flagged);
 
   return (

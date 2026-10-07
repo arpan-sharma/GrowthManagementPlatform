@@ -1,6 +1,6 @@
 # Growth Management Platform
 
-GMP is a student and teacher management tool for a small coaching class. It helps track attendance, marks, and topic-wise performance, while surfacing students who need attention.
+GMP is a student and teacher management tool for a small coaching class. It helps track attendance, marks, fees, and topic-wise performance, while surfacing students who need attention.
 
 The product is designed for a coaching class with one head teacher and a small group of students, and it focuses on operational clarity rather than content delivery. It is not meant to replace an LMS; instead, it manages academic records and highlights red flags, weak topics, and student progress.
 
@@ -11,6 +11,7 @@ GMP helps the head teacher:
 - Track daily attendance by batch
 - Monitor academic performance over time
 - Identify students at risk using attendance and marks trends
+- Manage fees and reminders
 - Create and review tests with question papers and marks
 - See chapter and topic-level performance to target learning gaps
 - Share notices and student progress updates
@@ -19,7 +20,7 @@ GMP helps the head teacher:
 
 ### Head teacher
 - Full access to all batches and subjects
-- Manages students, tests, notices, and summaries
+- Manages students, tests, fees, notices, and summaries
 - Does the data entry in version 1
 
 ### Student
@@ -38,8 +39,9 @@ GMP helps the head teacher:
 
 ### Students management
 - Search by batch or student name
-- Quick view of attendance, trends, and risk status
-- Student profile with attendance, averages, and subject performance
+- Quick view of attendance, trends, fees, and risk status
+- Student profile with attendance, averages, fees, and subject performance
+- Link to parent contact and progress communication
 
 ### Tests and marks
 - Create tests with date, batch, and max marks; each question tags a topic (topic → chapter → subject)
@@ -47,6 +49,12 @@ GMP helps the head teacher:
 - View batch averages, rankings, and result summaries
 - Generate question papers with AI assistance
 - Teacher reviews all AI-generated questions and answers before use
+
+### Fees tracking
+- Collected amount this term
+- Pending balance and overdue amounts
+- Student fee status: Paid, Partial, or Overdue
+- Reminders and mark-paid actions
 
 ### Chapter and topic analysis
 - Performance at subject, chapter, and topic level
@@ -67,10 +75,11 @@ GMP helps the head teacher:
 
 ## Data model
 
-The first version is a single coaching class (no tenant, parent contacts, or fees) and stores:
+The system is designed for multi-tenant usage from the beginning and stores data such as:
 
 - Batch
 - Student
+- Parent contact information
 - Teacher
 - Subject
 - Chapter
@@ -78,11 +87,10 @@ The first version is a single coaching class (no tenant, parent contacts, or fee
 - Attendance records
 - Test details
 - Questions and answers
-- Student results per question (the student's answer and marks awarded)
+- Student results per question or topic
+- Fee plan and payment records
 - Notice board entries
 - Users and roles
-
-Out of scope for now: multi-tenant data, parent contact details, and fee plans or payments.
 
 ## AI features
 
@@ -90,6 +98,7 @@ Out of scope for now: multi-tenant data, parent contact details, and fee plans o
 - AI question paper generation with chapter and topic tags
 
 ### Planned next steps
+- AI summary for parent progress reports
 - Plain-language explanations for flagged students
 
 ### Later phases
@@ -133,6 +142,7 @@ Not built yet in the prototype:
 Several product decisions are still open, including:
 
 - Whether marks are entered per question or per chapter total
+- Whether fees are uniform or vary by batch or sibling discounts
 - Whether notices expire automatically
 - Whether red flags should support a "contacted" status and notes
 - Whether separate teacher logins should be added for subject-specific access
@@ -157,9 +167,11 @@ Several product decisions are still open, including:
 - Red flags
 - Student profile
 - Chapter and topic analysis
+- Fees tab
 
 ### Phase 3: AI and outreach
 - AI question papers
+- Parent reports
 - WhatsApp alerts
 - PDF papers
 
@@ -200,7 +212,7 @@ flowchart LR
     D --> E
     E --> F[(PostgreSQL Database)]
     E --> G[AI Question Generator]
-    E --> H[Attendance Logic]
+    E --> H[Fees & Attendance Logic]
     E --> I[Analytics & Topic Insights]
     F --> J[Reports, Alerts, Notice Board]
     I --> B
@@ -210,7 +222,7 @@ flowchart LR
 
 ### How the system works
 
-1. The head teacher manages students, batches, attendance, tests, and notices.
+1. The head teacher manages students, batches, attendance, tests, fees, and notices.
 2. The backend stores records in PostgreSQL and computes attendance, performance, and red-flag signals.
 3. Analytics modules calculate trends, chapter-wise performance, and weak-topic insights.
 4. AI generates or supports question papers and summaries, but teacher review remains mandatory.
@@ -232,4 +244,4 @@ flowchart LR
 
 ## Summary
 
-GMP is a focused academic operations system for a coaching class. Its strongest value is turning daily attendance and marks into actionable insight for the head teacher, while keeping the system fast, explainable, and safe for student data.
+GMP is a focused academic operations system for a coaching class. Its strongest value is turning daily attendance, marks, and fee data into actionable insight for the head teacher, while keeping the system fast, explainable, and safe for student data.

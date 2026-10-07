@@ -1,12 +1,27 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useTeacherData } from "@/components/layout/TeacherFrame";
 import { StudentTable } from "@/components/students/StudentTable";
 import { buttonClass } from "@/components/ui/Button";
+import { fetchStudents } from "@/lib/api/students";
+import type { Student, StudentRecord } from "@/lib/types";
 
 export default function StudentsPage() {
-  const { students, records } = useTeacherData();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [records, setRecords] = useState<StudentRecord[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStudents()
+      .then((result) => {
+        setStudents(result.students);
+        setRecords(result.records);
+      })
+      .catch(() => setError("Could not load students from the API."))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div>
@@ -16,7 +31,9 @@ export default function StudentsPage() {
           + Add student
         </Link>
       </div>
-      <StudentTable students={students} records={records} />
+      {loading && <p className="text-[13px] text-text-muted">Loading students…</p>}
+      {error && <p className="text-[13px] text-danger">{error}</p>}
+      {!loading && !error && <StudentTable students={students} records={records} />}
     </div>
   );
 }

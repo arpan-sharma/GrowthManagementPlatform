@@ -16,7 +16,7 @@ export default async function MyPage() {
       <h1 className="m-0 text-[22px] font-semibold">{student.name}</h1>
       <p className="mb-5 mt-1 text-[13px] text-text-muted">Batch {student.batchId}</p>
       <div className="mb-5 grid grid-cols-2 gap-3">
-        <StatTile value={`${student.attendancePct}%`} label="Attendance" />
+        <StatTile value={student.attendancePct === null ? "—" : `${student.attendancePct}%`} label="Attendance" />
         <StatTile value={student.overallAverage === null ? "—" : `${student.overallAverage}%`} label="Average" />
       </div>
       <h2 className="mb-3 text-sm font-semibold">Subjects</h2>

@@ -1,28 +1,40 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useTeacherData } from "@/components/layout/TeacherFrame";
 import { ChapterTopicList } from "@/components/students/ChapterTopicList";
 import { SubjectCard } from "@/components/students/SubjectCard";
 import { buttonClass } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
 import { Tag } from "@/components/ui/Tag";
+import { fetchStudents } from "@/lib/api/students";
 import { formatInr, formatShortDate, initials } from "@/lib/format";
+import type { Chapter, Student, SubjectScore } from "@/lib/types";
 
 const FEE_TONE = { Paid: "good", Partial: "warn", Overdue: "bad" } as const;
 
 export default function StudentProfilePage() {
   const params = useParams<{ id: string }>();
-  const { students, subjects, chapters, fees } = useTeacherData();
-  const student = students.find((item) => item.id === params.id);
+  const [student, setStudent] = useState<Student | null>(null);
+  const [missing, setMissing] = useState(false);
 
-  if (!student) return <p>Student not found.</p>;
+  useEffect(() => {
+    fetchStudents()
+      .then((result) => {
+        const match = result.students.find((item) => item.id === params.id) ?? null;
+        setStudent(match);
+        setMissing(match === null);
+      })
+      .catch(() => setMissing(true));
+  }, [params.id]);
 
-  const subjectScores = subjects[student.id] ?? [];
-  const chapterList = chapters[student.id] ?? [];
-  const fee = fees.find((item) => item.studentId === student.id) ?? null;
+  if (!student) return <p>{missing ? "Student not found." : "Loading student…"}</p>;
+
+  const subjectScores: SubjectScore[] = [];
+  const chapterList: Chapter[] = [];
+  const fee = null;
   const subjectName = chapterList[0]?.subject;
 
   return (
@@ -52,7 +64,7 @@ export default function StudentProfilePage() {
         </div>
       </div>
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile value={`${student.attendancePct}%`} label="Overall attendance" />
+        <StatTile value={student.attendancePct === null ? "—" : `${student.attendancePct}%`} label="Overall attendance" />
         <StatTile value={student.overallAverage === null ? "—" : `${student.overallAverage}%`} label="Overall average" />
         <StatTile value={student.today ?? "—"} label="Today's status" />
         <StatTile value={student.feeStatus ?? "—"} label="Fee status" />
