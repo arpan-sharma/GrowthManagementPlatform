@@ -8,10 +8,12 @@ export interface Student {
   id: string;
   name: string;
   batchId: string;
+  batchName?: string;
   parentPhone: string;
   parentEmail?: string;
   attendancePct: number;
   overallAverage: number | null;
+  previousOverallAverage?: number | null;
   feeStatus: "Paid" | "Partial" | "Overdue" | null;
   flagged: boolean;
   flagReason?: string;

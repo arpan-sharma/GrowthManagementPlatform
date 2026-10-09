@@ -273,5 +273,6 @@ class DashboardOut(BaseModel):
     student_count: int
     present_today: int
     absent_today: int
+    attendance_pct: int = 0
     flagged: list[StudentOut]
     notices: list[NoticeOut]

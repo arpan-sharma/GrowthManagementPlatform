@@ -1,4 +1,9 @@
-import { APP_TODAY } from "./rules";
+export function todayIso(): string {
+  const date = new Date();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = [
@@ -31,11 +36,12 @@ export function formatShortDate(isoDate: string): string {
   return `${date.getUTCDate()} ${MONTHS_SHORT[date.getUTCMonth()]}`;
 }
 
-export function formatNoticeWhen(isoDate: string): string {
-  if (isoDate === APP_TODAY) return "Today";
-  const today = utcDate(APP_TODAY);
-  today.setUTCDate(today.getUTCDate() - 1);
-  const yesterday = today.toISOString().slice(0, 10);
+export function formatNoticeWhen(isoDate: string, today = todayIso()): string {
+  if (!isoDate) return "";
+  if (isoDate === today) return "Today";
+  const current = utcDate(today);
+  current.setUTCDate(current.getUTCDate() - 1);
+  const yesterday = current.toISOString().slice(0, 10);
   if (isoDate === yesterday) return "Yesterday";
   return formatShortDate(isoDate);
 }

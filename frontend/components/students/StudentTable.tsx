@@ -21,10 +21,10 @@ const TREND_LABEL = {
 
 export function StudentTable({
   students,
-  records,
+  records = [],
 }: {
   students: Student[];
-  records: StudentRecord[];
+  records?: StudentRecord[];
 }) {
   const router = useRouter();
   const [batchQuery, setBatchQuery] = useState("");
@@ -35,7 +35,8 @@ export function StudentTable({
   );
 
   const rows = students.filter((student) => {
-    const batch = student.batchId.toLowerCase().includes(batchQuery.trim().toLowerCase());
+    const batchLabel = (student.batchName || student.batchId).toLowerCase();
+    const batch = batchLabel.includes(batchQuery.trim().toLowerCase());
     const name = student.name.toLowerCase().includes(nameQuery.trim().toLowerCase());
     return batch && name;
   });
@@ -58,7 +59,10 @@ export function StudentTable({
       </div>
       <DataTable headers={["Name", "Batch", "Today", "Attendance", "Trend", "Fees", "Flag"]}>
         {rows.map((student) => {
-          const studentTrend = trend(student.overallAverage, previous[student.id] ?? null);
+          const studentTrend = trend(
+            student.overallAverage,
+            student.previousOverallAverage ?? previous[student.id] ?? null,
+          );
           return (
             <tr
               key={student.id}
@@ -66,12 +70,14 @@ export function StudentTable({
               onClick={() => router.push(`/dashboard/students/${student.id}`)}
             >
               <Td>{student.name}</Td>
-              <Td>{student.batchId}</Td>
+              <Td>{student.batchName || student.batchId}</Td>
               <Td>{student.today ?? "—"}</Td>
               <Td>{student.attendancePct}%</Td>
               <Td>{studentTrend ? TREND_LABEL[studentTrend] : "—"}</Td>
               <Td>{student.feeStatus ? <Tag tone={FEE_TONE[student.feeStatus]}>{student.feeStatus}</Tag> : "—"}</Td>
-              <Td>{student.flagged ? <Tag tone="bad">●</Tag> : "—"}</Td>
+              <Td>
+                <Tag tone={student.flagged ? "bad" : "good"}>●</Tag>
+              </Td>
             </tr>
           );
         })}

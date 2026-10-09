@@ -67,13 +67,7 @@ export function TeacherFrame({ initial, children }: { initial: TeacherSnapshot; 
         current.map((record) => (marks[record.id] === undefined ? record : { ...record, today: marks[record.id] })),
       );
     },
-    markPaid: (studentId) => {
-      setFees((current) =>
-        current.map((fee) =>
-          fee.studentId === studentId ? { ...fee, paid: fee.paid + fee.balance, balance: 0 } : fee,
-        ),
-      );
-    },
+    markPaid: () => {},
     addTest: (test) => setTests((current) => [test, ...current]),
     addNotice: (notice) => setNotices((current) => [notice, ...current]),
   };

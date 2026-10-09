@@ -174,10 +174,10 @@ Students can read their own attendance, marks, fees, and notices. Test responses
 
 ## Frontend connection
 
-Point the Next.js app at the API:
+Set the frontend API URL in `frontend/.env.local`:
 
 ```env
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 Run the frontend from `frontend/`:

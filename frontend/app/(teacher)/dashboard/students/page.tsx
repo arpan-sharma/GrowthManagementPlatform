@@ -1,12 +1,33 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useTeacherData } from "@/components/layout/TeacherFrame";
 import { StudentTable } from "@/components/students/StudentTable";
 import { buttonClass } from "@/components/ui/Button";
+import { fetchStudents } from "@/lib/api";
+import type { Student } from "@/lib/types";
 
 export default function StudentsPage() {
-  const { students, records } = useTeacherData();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    fetchStudents()
+      .then((rows) => {
+        if (active) setStudents(rows);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Could not load students.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div>
@@ -16,7 +37,9 @@ export default function StudentsPage() {
           + Add student
         </Link>
       </div>
-      <StudentTable students={students} records={records} />
+      {loading && <p className="text-[13px] text-text-muted">Loading students…</p>}
+      {error && <p className="text-[13px] text-danger">{error}</p>}
+      {!loading && !error && <StudentTable students={students} />}
     </div>
   );
 }

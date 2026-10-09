@@ -72,7 +72,7 @@ export default function LoginPage() {
           {mode === "institute" ? (
             <div>
               <Field label="Email">
-                <input type="email" value={email} placeholder="headteacher@institute.com" onChange={(event) => setEmail(event.target.value)} />
+                <input type="email" value={email} placeholder="admin@gmail.com" onChange={(event) => setEmail(event.target.value)} />
               </Field>
               <Field label="Password">
                 <input type="password" value={password} placeholder="Enter password" onChange={(event) => setPassword(event.target.value)} />

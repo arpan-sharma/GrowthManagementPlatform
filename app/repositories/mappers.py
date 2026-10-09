@@ -1,4 +1,5 @@
 """Map between domain models and SQLAlchemy rows (services schema)."""
+import json
 from datetime import date, datetime
 
 from app.db.constants import DEFAULT_INSTITUTION_ID
@@ -38,6 +39,21 @@ _DB_TEST_STATUS = {v: k for k, v in _API_TEST_STATUS.items()}
 
 _API_QUESTION_TYPE = {"mcq": "MCQ", "short_answer": "Short answer"}
 _DB_QUESTION_TYPE = {v: k for k, v in _API_QUESTION_TYPE.items()}
+_DB_QUESTION_TYPE["Numerical"] = "short_answer"
+
+
+def _exam_meta(exam: Exam) -> str:
+    return json.dumps({"subject_id": exam.subject_id, "chapter_id": exam.chapter_id})
+
+
+def _parse_exam_meta(description: str | None) -> tuple[str, str]:
+    try:
+        data = json.loads(description or "")
+    except (TypeError, json.JSONDecodeError):
+        return "", ""
+    if not isinstance(data, dict):
+        return "", ""
+    return str(data.get("subject_id") or ""), str(data.get("chapter_id") or "")
 
 
 def default_institution() -> Institution:
@@ -239,12 +255,13 @@ def attendance_to_row(mark: AttendanceMark) -> AttendanceRow:
 
 
 def test_to_domain(row: TestRow, *, subject_id: str = "", chapter_id: str = "") -> Exam:
+    meta_subject, meta_chapter = _parse_exam_meta(row.description)
     return Exam(
         id=row.id,
         institution_id=DEFAULT_INSTITUTION_ID,
         name=row.name,
-        subject_id=subject_id,
-        chapter_id=chapter_id,
+        subject_id=subject_id or meta_subject,
+        chapter_id=chapter_id or meta_chapter,
         on_date=_iso(row.date),
         max_marks=row.max_marks,
         batch_id=row.batch_id,
@@ -259,7 +276,7 @@ def test_to_row(exam: Exam) -> TestRow:
         batch_id=exam.batch_id or "",
         date=date.fromisoformat(exam.on_date),
         max_marks=exam.max_marks,
-        description="",
+        description=_exam_meta(exam),
         status=_DB_TEST_STATUS.get(exam.status, exam.status.lower().replace(" ", "_")),
     )
 
