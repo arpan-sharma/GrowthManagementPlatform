@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sparkles } from "lucide-react";
+import { AssistantPanel } from "./AssistantPanel";
 import { Brand } from "./Brand";
 import { Tabs } from "./Tabs";
 
@@ -22,19 +24,23 @@ function activeTab(pathname: string): string {
 
 export function Navbar() {
   const pathname = usePathname();
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-surface px-5 py-3.5">
       <Brand />
       <Tabs tabs={TABS} active={activeTab(pathname)} />
-      <div className="flex items-center gap-2.5">
+      <div className="relative flex items-center gap-2.5">
         <button
           type="button"
           title="Ask AI assistant"
+          aria-expanded={assistantOpen}
+          onClick={() => setAssistantOpen((open) => !open)}
           className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-accent text-white"
         >
           <Sparkles size={16} />
         </button>
+        {assistantOpen && <AssistantPanel onClose={() => setAssistantOpen(false)} />}
         <Link
           href="/login"
           title="Log out"

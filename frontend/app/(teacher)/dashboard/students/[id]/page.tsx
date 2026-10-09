@@ -2,28 +2,49 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useTeacherData } from "@/components/layout/TeacherFrame";
+import { useEffect, useState } from "react";
 import { ChapterTopicList } from "@/components/students/ChapterTopicList";
 import { SubjectCard } from "@/components/students/SubjectCard";
 import { buttonClass } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
 import { Tag } from "@/components/ui/Tag";
+import { fetchStudentProfile, type StudentProfile } from "@/lib/api";
 import { formatInr, formatShortDate, initials } from "@/lib/format";
 
 const FEE_TONE = { Paid: "good", Partial: "warn", Overdue: "bad" } as const;
 
 export default function StudentProfilePage() {
   const params = useParams<{ id: string }>();
-  const { students, subjects, chapters, fees } = useTeacherData();
-  const student = students.find((item) => item.id === params.id);
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  if (!student) return <p>Student not found.</p>;
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    fetchStudentProfile(params.id)
+      .then((data) => {
+        if (active) setProfile(data);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Could not load student.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [params.id]);
 
-  const subjectScores = subjects[student.id] ?? [];
-  const chapterList = chapters[student.id] ?? [];
-  const fee = fees.find((item) => item.studentId === student.id) ?? null;
-  const subjectName = chapterList[0]?.subject;
+  if (loading) return <p className="text-[13px] text-text-muted">Loading student profile…</p>;
+  if (error) return <p className="text-[13px] text-danger">{error}</p>;
+  if (!profile) return <p>Student not found.</p>;
+
+  const { student, subjects, chapters, fee } = profile;
+  const subjectName = chapters[0]?.subject;
 
   return (
     <div>
@@ -63,19 +84,19 @@ export default function StudentProfilePage() {
         </div>
       )}
       <h2 className="mb-3 mt-6 text-sm font-semibold">Subjects</h2>
-      {subjectScores.length === 0 ? (
+      {subjects.length === 0 ? (
         <p className="text-[13px] text-text-muted">No subject scores yet.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-3">
-          {subjectScores.map((score) => (
+          {subjects.map((score) => (
             <SubjectCard key={score.subject} score={score} />
           ))}
         </div>
       )}
-      {chapterList.length > 0 && subjectName && (
+      {chapters.length > 0 && subjectName && (
         <>
           <h2 className="mb-3 mt-6 text-sm font-semibold">Chapter & topic analysis — {subjectName}</h2>
-          <ChapterTopicList chapters={chapterList} />
+          <ChapterTopicList chapters={chapters} />
         </>
       )}
       <h2 className="mb-3 mt-6 text-sm font-semibold">Fees</h2>

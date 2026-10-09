@@ -14,6 +14,7 @@ class Test:
     id: str
     name: str
     batch_id: str
+    subject_id: str
     date: date
     max_marks: int
     description: str = ""

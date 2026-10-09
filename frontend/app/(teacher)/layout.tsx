@@ -1,32 +1,11 @@
 import type { ReactNode } from "react";
-import { TeacherFrame } from "@/components/layout/TeacherFrame";
-import { getBatches } from "@/lib/data/batches";
-import { getFees } from "@/lib/data/fees";
-import { getNotices } from "@/lib/data/notices";
-import { listChapters, listStudentRecords, listSubjects } from "@/lib/data/students";
-import { getTests } from "@/lib/data/tests";
+import { Navbar } from "@/components/layout/Navbar";
 
-export default async function TeacherLayout({ children }: { children: ReactNode }) {
-  const [fees, notices, tests, batches] = await Promise.all([
-    getFees(),
-    getNotices(),
-    getTests(),
-    getBatches(),
-  ]);
-
+export default function TeacherLayout({ children }: { children: ReactNode }) {
   return (
-    <TeacherFrame
-      initial={{
-        records: listStudentRecords(),
-        subjects: listSubjects(),
-        chapters: listChapters(),
-        fees,
-        notices,
-        tests,
-        batches: batches.map((batch) => ({ id: batch.id, name: batch.name })),
-      }}
-    >
-      {children}
-    </TeacherFrame>
+    <>
+      <Navbar />
+      <main className="mx-auto max-w-[960px] px-5 py-7 pb-16">{children}</main>
+    </>
   );
 }

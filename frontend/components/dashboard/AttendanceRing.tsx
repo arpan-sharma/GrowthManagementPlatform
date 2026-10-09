@@ -1,7 +1,8 @@
 export function AttendanceRing({ percent }: { percent: number }) {
   const radius = 42;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (Math.max(0, Math.min(100, percent)) / 100) * circumference;
+  const safePercent = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0;
+  const offset = circumference - (safePercent / 100) * circumference;
 
   return (
     <div className="relative h-[100px] w-[100px]">
@@ -21,7 +22,7 @@ export function AttendanceRing({ percent }: { percent: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <b className="text-lg">{percent}%</b>
+        <b className="text-lg">{safePercent}%</b>
         <span className="text-[10.5px] text-text-faint">attendance</span>
       </div>
     </div>
