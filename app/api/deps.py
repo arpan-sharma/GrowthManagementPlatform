@@ -1,5 +1,5 @@
-from contextvars import ContextVar
 from dataclasses import dataclass
+from threading import Lock
 from typing import Annotated, Generator, Optional
 
 from sqlalchemy.orm import Session
@@ -22,12 +22,15 @@ from app.services.platform_service import PlatformService
 bearer = HTTPBearer(auto_error=False)
 
 _memory_repo: InMemoryAuthRepository | None = None
-_request_db_session: ContextVar[Session | None] = ContextVar("_request_db_session", default=None)
+_sql_seed_checked: set[str] = set()
+_sql_seed_lock = Lock()
 
 
 def reset_repositories() -> None:
     global _memory_repo
     _memory_repo = None
+    with _sql_seed_lock:
+        _sql_seed_checked.clear()
     get_settings.cache_clear()
     from app.core.database import get_engine, get_session_factory
 
@@ -49,12 +52,7 @@ def get_db_session() -> Generator[Session | None, None, None]:
     if not settings.database_url:
         yield None
         return
-    existing = _request_db_session.get()
-    if existing is not None:
-        yield existing
-        return
     session = get_session_factory(settings.database_url)()
-    token = _request_db_session.set(session)
     try:
         yield session
         session.commit()
@@ -62,7 +60,6 @@ def get_db_session() -> Generator[Session | None, None, None]:
         session.rollback()
         raise
     finally:
-        _request_db_session.reset(token)
         session.close()
 
 
@@ -74,8 +71,12 @@ def get_repo(
         if session is None:
             raise RuntimeError("Database session missing while DATABASE_URL is set.")
         repo = SqlAuthRepository(session)
-        if not settings.is_production and repo.get_user_by_email("admin@gmail.com") is None:
-            seed_sql_data(repo, settings)
+        if not settings.is_production and settings.database_url not in _sql_seed_checked:
+            with _sql_seed_lock:
+                if settings.database_url not in _sql_seed_checked:
+                    if repo.get_user_by_email("admin@gmail.com") is None:
+                        seed_sql_data(repo, settings)
+                    _sql_seed_checked.add(settings.database_url)
         return repo
     return _memory_repository(settings)
 

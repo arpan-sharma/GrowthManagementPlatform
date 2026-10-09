@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from typing import Any, Optional
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.db.constants import DEFAULT_INSTITUTION_CODE, DEFAULT_INSTITUTION_ID
@@ -139,6 +139,64 @@ class SqlAcademicRepository:
             stmt = stmt.where(StudentRow.batch_id == batch_id)
         return [self._student_profile(s, u) for s, u in self.session.execute(stmt).all()]
 
+    def list_student_summaries(self, today: date, batch_id: Optional[str] = None) -> list[dict[str, Any]]:
+        att_stats = (
+            select(
+                AttendanceRow.student_id,
+                func.count().label("total"),
+                func.coalesce(
+                    func.sum(case((AttendanceRow.status.in_(("present", "late")), 1), else_=0)),
+                    0,
+                ).label("attended"),
+            )
+            .group_by(AttendanceRow.student_id)
+            .subquery()
+        )
+        today_marks = (
+            select(AttendanceRow.student_id, AttendanceRow.status)
+            .where(AttendanceRow.date == today)
+            .subquery()
+        )
+        stmt = (
+            select(
+                StudentRow,
+                UserRow,
+                BatchRow.name,
+                att_stats.c.attended,
+                att_stats.c.total,
+                today_marks.c.status,
+            )
+            .join(UserRow, UserRow.id == StudentRow.id)
+            .join(BatchRow, BatchRow.id == StudentRow.batch_id)
+            .outerjoin(att_stats, att_stats.c.student_id == StudentRow.id)
+            .outerjoin(today_marks, today_marks.c.student_id == StudentRow.id)
+            .where(UserRow.role == "student", UserRow.is_active.is_(True))
+        )
+        if batch_id:
+            stmt = stmt.where(StudentRow.batch_id == batch_id)
+        summaries: list[dict[str, Any]] = []
+        for student, user, batch_name, attended, total, today_status in self.session.execute(stmt).all():
+            total_n = int(total or 0)
+            attended_n = int(attended or 0)
+            attendance_pct = round(100 * attended_n / total_n, 1) if total_n else 0.0
+            summaries.append(
+                {
+                    "id": student.id,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "email": user.email,
+                    "contact_number": user.contact_number,
+                    "batch_id": student.batch_id,
+                    "batch_name": batch_name or "",
+                    "roll_number": student.id,
+                    "is_active": user.is_active,
+                    "attendance_pct": attendance_pct,
+                    "attendance_total": total_n,
+                    "today_db": today_status,
+                }
+            )
+        return summaries
+
     def save_subject(self, row: Subject) -> None:
         self.session.merge(subject_to_row(row))
 
@@ -201,25 +259,19 @@ class SqlAcademicRepository:
         batch_id: Optional[str] = None,
         student_id: Optional[str] = None,
     ) -> list[AttendanceMark]:
-        stmt = select(AttendanceRow)
+        stmt = select(AttendanceRow, StudentRow.batch_id).join(
+            StudentRow, StudentRow.id == AttendanceRow.student_id
+        )
         if on_date:
             stmt = stmt.where(AttendanceRow.date == date.fromisoformat(on_date))
         if student_id:
             stmt = stmt.where(AttendanceRow.student_id == student_id)
-        rows = self.session.scalars(stmt).all()
-        marks: list[AttendanceMark] = []
-        for row in rows:
-            student = self.get_student(institution_id, row.student_id)
-            if batch_id and (student is None or student.batch_id != batch_id):
-                continue
-            marks.append(
-                attendance_to_domain(
-                    row,
-                    batch_id=student.batch_id if student else "",
-                    subject_id="",
-                )
-            )
-        return marks
+        if batch_id:
+            stmt = stmt.where(StudentRow.batch_id == batch_id)
+        return [
+            attendance_to_domain(row, batch_id=student_batch_id, subject_id="")
+            for row, student_batch_id in self.session.execute(stmt).all()
+        ]
 
     def save_test(self, row: Exam) -> None:
         self.session.merge(test_to_row(row))
@@ -232,14 +284,29 @@ class SqlAcademicRepository:
         return test_to_domain(db_row, subject_id=subject_id, chapter_id=chapter_id)
 
     def list_tests(self, institution_id: str, batch_id: Optional[str] = None) -> list[Exam]:
-        rows = self.session.scalars(select(TestRow)).all()
+        stmt = select(TestRow)
         if batch_id:
-            rows = [row for row in rows if row.batch_id == batch_id]
-        exams: list[Exam] = []
-        for row in rows:
-            subject_id, chapter_id = self._test_subject_chapter(row.id)
-            exams.append(test_to_domain(row, subject_id=subject_id, chapter_id=chapter_id))
-        return exams
+            stmt = stmt.where(TestRow.batch_id == batch_id)
+        rows = self.session.scalars(stmt).all()
+        subject_chapter = self._test_subject_chapters([row.id for row in rows])
+        return [
+            test_to_domain(row, subject_id=subject_chapter.get(row.id, ("", ""))[0], chapter_id=subject_chapter.get(row.id, ("", ""))[1])
+            for row in rows
+        ]
+
+    def _test_subject_chapters(self, test_ids: list[str]) -> dict[str, tuple[str, str]]:
+        if not test_ids:
+            return {}
+        pairs = self.session.execute(
+            select(QuestionRow.test_id, ChapterRow.subject_id, ChapterRow.id)
+            .join(TopicRow, TopicRow.id == QuestionRow.topic_id)
+            .join(ChapterRow, ChapterRow.id == TopicRow.chapter_id)
+            .where(QuestionRow.test_id.in_(test_ids))
+        ).all()
+        mapping: dict[str, tuple[str, str]] = {}
+        for test_id, subject_id, chapter_id in pairs:
+            mapping.setdefault(test_id, (subject_id, chapter_id))
+        return mapping
 
     def save_question(self, row: ExamQuestion) -> None:
         self.session.merge(question_to_row(row))

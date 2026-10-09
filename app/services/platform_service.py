@@ -1,4 +1,5 @@
 """Institute academic rules. Every read and write is scoped to the caller's institution."""
+from collections import defaultdict
 from datetime import date, datetime, timezone
 from typing import Optional, Protocol
 
@@ -234,13 +235,55 @@ class PlatformService:
             raise AppError(403, "forbidden", "You do not have access to this resource.")
         if batch_id:
             self._batch_or_404(institution_id, batch_id)
-        rows: list[StudentOut] = []
-        for row in self.db.list_students(institution_id, batch_id):
-            user = self.auth.get_user_by_id(row.user_id)
-            if user is None or not user.is_active:
-                continue
-            rows.append(self._student_out(row))
-        return rows
+        summaries = getattr(self.db, "list_student_summaries", None)
+        if summaries is not None:
+            return self._student_outs_from_summaries(summaries(self.today, batch_id))
+        students = self.db.list_students(institution_id, batch_id)
+        if getattr(self.auth, "session", None) is None:
+            students = [
+                row
+                for row in students
+                if (user := self.auth.get_user_by_id(row.user_id)) is not None and user.is_active
+            ]
+        return self._student_outs(institution_id, students)
+
+    def _student_outs_from_summaries(self, rows: list[dict]) -> list[StudentOut]:
+        status_map = {"present": "Present", "absent": "Absent", "late": "Late"}
+        out: list[StudentOut] = []
+        for row in rows:
+            attendance_pct = row["attendance_pct"]
+            has_marks = int(row.get("attendance_total") or 0) > 0
+            flagged = attendance_pct <= ATTENDANCE_FLAG_BELOW
+            if flagged:
+                flag_reason = (
+                    f"Attendance {attendance_pct}%"
+                    if has_marks
+                    else "No attendance marked"
+                )
+            else:
+                flag_reason = None
+            today = status_map.get(row["today_db"]) if row.get("today_db") else None
+            out.append(
+                StudentOut(
+                    id=row["id"],
+                    first_name=row["first_name"],
+                    last_name=row["last_name"],
+                    email=row["email"],
+                    contact_number=row["contact_number"],
+                    batch_id=row["batch_id"],
+                    batch_name=row["batch_name"],
+                    roll_number=row["roll_number"],
+                    is_active=row["is_active"],
+                    attendance_pct=attendance_pct,
+                    overall_average=None,
+                    previous_overall_average=None,
+                    fee_status=None,
+                    flagged=flagged,
+                    flag_reason=flag_reason,
+                    today=today,  # type: ignore[arg-type]
+                )
+            )
+        return out
 
     def get_student(self, principal: Caller, student_id: str) -> StudentProfileOut:
         student = self._visible_student(principal, student_id)
@@ -550,14 +593,18 @@ class PlatformService:
     # ---------- dashboard ----------
     def dashboard(self, principal: Caller) -> DashboardOut:
         institution_id = self._require_teacher(principal)
-        students = [self._student_out(row) for row in self.db.list_students(institution_id)]
+        students = self.list_students(principal)
         today = self.today.isoformat()
         marks = self.db.list_attendance(institution_id, on_date=today)
+        attendance_pct = (
+            round(sum(row.attendance_pct for row in students) / len(students)) if students else 0
+        )
         return DashboardOut(
             batch_count=len(self.db.list_batches(institution_id)),
             student_count=len(students),
             present_today=sum(1 for row in marks if row.status in ("Present", "Late")),
             absent_today=sum(1 for row in marks if row.status == "Absent"),
+            attendance_pct=attendance_pct,
             flagged=[row for row in students if row.flagged],
             notices=self.list_notices(principal)[:5],
         )
@@ -638,13 +685,55 @@ class PlatformService:
             status=row.status,
         )
 
-    def _student_out(self, student: StudentProfile) -> StudentOut:
-        attendance = self.db.list_attendance(student.institution_id, student_id=student.id)
+    def _student_outs(self, institution_id: str, students: list[StudentProfile]) -> list[StudentOut]:
+        if not students:
+            return []
+        batches = {row.id: row for row in self.db.list_batches(institution_id)}
+        subjects = {row.id: row for row in self.db.list_subjects(institution_id)}
+        attendance_by_student: dict[str, list[AttendanceMark]] = defaultdict(list)
+        for mark in self.db.list_attendance(institution_id):
+            attendance_by_student[mark.student_id].append(mark)
+        tests = {row.id: row for row in self.db.list_tests(institution_id)}
+        history_by_student: dict[str, list[tuple[Exam, ExamMark, float]]] = defaultdict(list)
+        for mark in self.db.list_marks(institution_id):
+            exam = tests.get(mark.test_id)
+            if exam is None or exam.max_marks <= 0 or exam.status != "Done":
+                continue
+            history_by_student[mark.student_id].append(
+                (exam, mark, round(100 * mark.marks / exam.max_marks, 1))
+            )
+        for rows in history_by_student.values():
+            rows.sort(key=lambda item: item[0].on_date)
+        return [
+            self._student_out(
+                student,
+                attendance=attendance_by_student.get(student.id, []),
+                history=history_by_student.get(student.id, []),
+                batch=batches.get(student.batch_id),
+                subjects=subjects,
+                is_active=True,
+            )
+            for student in students
+        ]
+
+    def _student_out(
+        self,
+        student: StudentProfile,
+        *,
+        attendance: Optional[list[AttendanceMark]] = None,
+        history: Optional[list[tuple[Exam, ExamMark, float]]] = None,
+        batch: Optional[Batch] = None,
+        subjects: Optional[dict[str, Subject]] = None,
+        is_active: Optional[bool] = None,
+    ) -> StudentOut:
+        if attendance is None:
+            attendance = self.db.list_attendance(student.institution_id, student_id=student.id)
         attended = sum(1 for row in attendance if row.status in ("Present", "Late"))
         attendance_pct = round(100 * attended / len(attendance), 1) if attendance else 0.0
         today_rows = [row for row in attendance if row.on_date == self.today.isoformat()]
         today = _day_status(today_rows)
-        history = self._student_test_history(student.institution_id, student.id)
+        if history is None:
+            history = self._student_test_history(student.institution_id, student.id)
         percentages = [pct for _, _, pct in history]
         overall = round(sum(percentages) / len(percentages), 1) if percentages else None
         previous = round(sum(percentages[:-1]) / len(percentages[:-1]), 1) if len(percentages) >= 2 else None
@@ -652,19 +741,22 @@ class PlatformService:
         for exam, _, pct in history:
             by_subject.setdefault(exam.subject_id, []).append(pct)
         reasons = []
-        if attendance and attendance_pct < ATTENDANCE_FLAG_BELOW:
-            reasons.append(f"Attendance {attendance_pct}%")
+        if attendance_pct <= ATTENDANCE_FLAG_BELOW:
+            reasons.append(f"Attendance {attendance_pct}%" if attendance else "No attendance marked")
         for subject_id, scores in by_subject.items():
             if len(scores) < 3:
                 continue
             last3 = scores[-3:]
             if last3[1] < last3[0] and last3[2] < last3[1]:
-                subject = self.db.get_subject(student.institution_id, subject_id)
+                subject = (subjects or {}).get(subject_id) or self.db.get_subject(student.institution_id, subject_id)
                 label = subject.name if subject else "A subject"
                 reasons.append(f"{label} score dropped 3 tests in a row")
         fee = self.db.find_fee(student.institution_id, student.id)
-        batch = self.db.get_batch(student.institution_id, student.batch_id)
-        user = self.auth.get_user_by_id(student.user_id)
+        if batch is None:
+            batch = self.db.get_batch(student.institution_id, student.batch_id)
+        if is_active is None:
+            user = self.auth.get_user_by_id(student.user_id)
+            is_active = user.is_active if user else True
         parts = student.full_name.strip().split(None, 1)
         return StudentOut(
             id=student.id,
@@ -675,7 +767,7 @@ class PlatformService:
             batch_id=student.batch_id,
             batch_name=batch.name if batch else "",
             roll_number=student.roll_number,
-            is_active=user.is_active if user else True,
+            is_active=is_active,
             attendance_pct=attendance_pct,
             overall_average=overall,
             previous_overall_average=previous,
