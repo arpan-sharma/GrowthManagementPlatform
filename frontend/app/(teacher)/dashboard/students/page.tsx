@@ -4,29 +4,23 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StudentTable } from "@/components/students/StudentTable";
 import { buttonClass } from "@/components/ui/Button";
-import { fetchStudents } from "@/lib/api";
-import type { Student } from "@/lib/types";
+import { fetchStudents } from "@/lib/api/students";
+import type { Student, StudentRecord } from "@/lib/types";
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [records, setRecords] = useState<StudentRecord[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let active = true;
     fetchStudents()
-      .then((rows) => {
-        if (active) setStudents(rows);
+      .then((result) => {
+        setStudents(result.students);
+        setRecords(result.records);
       })
-      .catch((err) => {
-        if (active) setError(err instanceof Error ? err.message : "Could not load students.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+      .catch(() => setError("Could not load students from the API."))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -39,7 +33,7 @@ export default function StudentsPage() {
       </div>
       {loading && <p className="text-[13px] text-text-muted">Loading students…</p>}
       {error && <p className="text-[13px] text-danger">{error}</p>}
-      {!loading && !error && <StudentTable students={students} />}
+      {!loading && !error && <StudentTable students={students} records={records} />}
     </div>
   );
 }

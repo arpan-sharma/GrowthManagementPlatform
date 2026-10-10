@@ -2,6 +2,7 @@ import type { FeeStatus, ScoreLevel, SubjectScore, Trend } from "./types";
 
 export const APP_TODAY = "2026-09-26";
 export const ATTENDANCE_FLAG_BELOW = 80;
+export const ATTENDANCE_RED_BELOW = 50;
 export const TREND_DELTA = 2;
 export const PASS_MARK_PCT = 40;
 export const TOPIC_GOOD_AT = 75;
@@ -26,6 +27,13 @@ export function droppedThreeInARow(scores: number[]): boolean {
   if (scores.length < 3) return false;
   const last3 = scores.slice(-3);
   return last3[1] < last3[0] && last3[2] < last3[1];
+}
+
+export function attendanceZone(attendancePct: number | null): "good" | "warn" | "bad" | null {
+  if (attendancePct === null) return null;
+  if (attendancePct < ATTENDANCE_RED_BELOW) return "bad";
+  if (attendancePct <= ATTENDANCE_FLAG_BELOW) return "warn";
+  return "good";
 }
 
 export function flagReason(attendancePct: number, subjects: SubjectScore[]): string | undefined {

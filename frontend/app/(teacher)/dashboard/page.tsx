@@ -16,36 +16,15 @@ import type { Student } from "@/lib/types";
 type DashboardData = Awaited<ReturnType<typeof fetchDashboard>>;
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [name, setName] = useState("");
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const user = readSessionUser();
-    setName(user ? `${user.first_name} ${user.last_name}`.trim() : "");
-    fetchDashboard()
-      .then(setData)
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load dashboard."));
-  }, []);
-
-  const flagged: Student[] = data?.flagged.map((row) => ({
-    id: row.id,
-    name: `${row.first_name} ${row.last_name}`.trim(),
-    batchId: row.batch_id,
-    batchName: row.batch_name,
-    parentPhone: row.contact_number,
-    parentEmail: row.email ?? undefined,
-    attendancePct: row.attendance_pct,
-    overallAverage: row.overall_average,
-    previousOverallAverage: row.previous_overall_average,
-    feeStatus: row.fee_status,
-    flagged: row.flagged,
-    flagReason: row.flag_reason ?? undefined,
-    today: row.today,
-  })) ?? [];
-
-  if (error) return <p role="alert" className="text-danger">{error}</p>;
-  if (!data) return <p className="text-text-muted">Loading overview…</p>;
+  const { students, batchList, notices } = useTeacherData();
+  const attendanceValues = students.flatMap((student) =>
+    student.attendancePct === null ? [] : [student.attendancePct],
+  );
+  const attendance =
+    attendanceValues.length === 0
+      ? 0
+      : Math.round(attendanceValues.reduce((sum, value) => sum + value, 0) / attendanceValues.length);
+  const flagged = students.filter((student) => student.flagged);
 
   const today = new Date().toISOString().slice(0, 10);
   const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 18 ? "Good afternoon" : "Good evening";

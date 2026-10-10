@@ -35,8 +35,11 @@ export default function MyPage() {
   return (
     <div>
       <h1 className="m-0 text-[22px] font-semibold">{student.name}</h1>
-      <p className="mb-5 mt-1 text-[13px] text-text-muted">Batch {student.batchName ?? student.batchId}</p>
-      <div className="mb-5 grid grid-cols-2 gap-3"><StatTile value={`${student.attendancePct}%`} label="Attendance" /><StatTile value={student.overallAverage === null ? "—" : `${student.overallAverage}%`} label="Average" /></div>
+      <p className="mb-5 mt-1 text-[13px] text-text-muted">Batch {student.batchId}</p>
+      <div className="mb-5 grid grid-cols-2 gap-3">
+        <StatTile value={student.attendancePct === null ? "—" : `${student.attendancePct}%`} label="Attendance" />
+        <StatTile value={student.overallAverage === null ? "—" : `${student.overallAverage}%`} label="Average" />
+      </div>
       <h2 className="mb-3 text-sm font-semibold">Subjects</h2>
       {subjects.length ? <div className="grid gap-3 sm:grid-cols-3">{subjects.map((score) => <SubjectCard key={score.subject} score={score} />)}</div> : <p className="text-text-muted">No test results are available yet.</p>}
       {subjectName && <><h2 className="mb-3 mt-6 text-sm font-semibold">Chapter & topic analysis — {subjectName}</h2><ChapterTopicList chapters={chapters} /></>}

@@ -1,50 +1,41 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
 import { ChapterTopicList } from "@/components/students/ChapterTopicList";
 import { SubjectCard } from "@/components/students/SubjectCard";
 import { buttonClass } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
 import { Tag } from "@/components/ui/Tag";
-import { fetchStudentProfile, type StudentProfile } from "@/lib/api";
+import { fetchStudents } from "@/lib/api/students";
 import { formatInr, formatShortDate, initials } from "@/lib/format";
+import type { Chapter, Student, SubjectScore } from "@/lib/types";
 
 const FEE_TONE = { Paid: "good", Partial: "warn", Overdue: "bad" } as const;
 
 export default function StudentProfilePage() {
   const params = useParams<{ id: string }>();
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [student, setStudent] = useState<Student | null>(null);
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError("");
-    fetchStudentProfile(params.id)
-      .then((data) => {
-        if (active) setProfile(data);
+    fetchStudents()
+      .then((result) => {
+        const match = result.students.find((item) => item.id === params.id) ?? null;
+        setStudent(match);
+        setMissing(match === null);
       })
-      .catch((err) => {
-        if (active) setError(err instanceof Error ? err.message : "Could not load student.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+      .catch(() => setMissing(true));
   }, [params.id]);
 
-  if (loading) return <p className="text-[13px] text-text-muted">Loading student profile…</p>;
-  if (error) return <p className="text-[13px] text-danger">{error}</p>;
-  if (!profile) return <p>Student not found.</p>;
+  if (!student) return <p>{missing ? "Student not found." : "Loading student…"}</p>;
 
-  const { student, subjects, chapters, fee } = profile;
-  const subjectName = chapters[0]?.subject;
+  const subjectScores: SubjectScore[] = [];
+  const chapterList: Chapter[] = [];
+  const fee = null;
+  const subjectName = chapterList[0]?.subject;
 
   return (
     <div>
@@ -73,7 +64,7 @@ export default function StudentProfilePage() {
         </div>
       </div>
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile value={`${student.attendancePct}%`} label="Overall attendance" />
+        <StatTile value={student.attendancePct === null ? "—" : `${student.attendancePct}%`} label="Overall attendance" />
         <StatTile value={student.overallAverage === null ? "—" : `${student.overallAverage}%`} label="Overall average" />
         <StatTile value={student.today ?? "—"} label="Today's status" />
         <StatTile value={student.feeStatus ?? "—"} label="Fee status" />
